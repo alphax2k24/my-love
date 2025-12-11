@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>🏰 Quête du Château — Vers un Joyeux Anniversaire</title>
+<style>
+  :root{
+    --bg1:#f7f3f8;
+    --card:#fff;
+    --accent:#c84b7d;
+    --muted:#6b6b6b;
+    --stone:#e6e1e6;
+    --soft:#fff6fb;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:#222;background:linear-gradient(180deg,#fffdfd,#f7f3f8);-webkit-font-smoothing:antialiased}
+  .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+  .game{width:1020px;max-width:96vw;background:var(--card);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.09);overflow:hidden;display:grid;grid-template-columns:1fr 340px}
+  /* LEFT */
+  .left{padding:22px 24px;display:flex;flex-direction:column;gap:12px}
+  .head{display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:20px;color:var(--accent)}
+  .subtitle{color:var(--muted);font-size:13px;margin-left:auto}
+  .board{background:linear-gradient(180deg,#fff,#fff8fb);border-radius:12px;padding:14px;border:1px solid rgba(0,0,0,0.03)}
+  .map{display:flex;flex-direction:column;gap:10px;align-items:center;padding:6px}
+  .row{display:flex;gap:10px}
+  .tile{width:84px;height:110px;background:linear-gradient(180deg,#fbf7fb,#fff);border-radius:10px;border:2px solid #f0d6e3;display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;box-shadow:0 6px 18px rgba(200,75,125,0.06);transition:transform .18s, box-shadow .18s}
+  .tile.stone{background:linear-gradient(180deg,#f0f0f2,#e6e6ea);border-color:#dedce0}
+  .tile.obs{filter:grayscale(.1) contrast(.9)}
+  .tile.current{transform:translateY(-10px);box-shadow:0 24px 38px rgba(200,75,125,.12)}
+  .tile .idx{position:absolute;top:6px;left:6px;font-size:11px;color:#9b9b9b}
+  .tile .emoji{font-size:36px}
+  .floor{width:86%;height:10px;border-radius:6px;margin-top:8px;background:linear-gradient(90deg,#fff1f6,#fff8fb)}
+  .controls{display:flex;gap:8px;margin-top:12px;align-items:center}
+  button{background:var(--accent);color:white;border:none;padding:10px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+  button.alt{background:transparent;color:var(--accent);border:2px solid #ffd6e4}
+  .hint{font-size:13px;color:var(--muted);margin-top:8px}
+  .row.center{justify-content:center}
+  /* RIGHT */
+  .right{padding:20px;background:linear-gradient(180deg,#fff,#fff9fb);border-left:1px solid rgba(0,0,0,0.02);display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--soft);padding:12px;border-radius:10px}
+  .inventory{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:white;border:1px solid #ffdde7;padding:8px 10px;border-radius:999px;font-weight:700;display:inline-flex;align-items:center;gap:8px}
+  .log{height:160px;overflow:auto;padding:10px;background:white;border-radius:8px;border:1px dashed #ffdce9;font-size:14px}
+  .progress{display:flex;gap:6px;align-items:center}
+  .stat{font-weight:800;color:var(--accent)}
+  .finalView{display:none;padding:18px;text-align:center}
+  .big{font-size:46px}
+  .confetti{pointer-events:none;position:fixed;inset:0;z-index:9999;overflow:hidden}
+  .confetti .piece{position:absolute;width:10px;height:14px;border-radius:2px;opacity:0.95}
+  .footerNote{font-size:12px;color:var(--muted)}
+  @media (max-width:980px){.game{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game" role="application" aria-label="Jeu quête château">
+    <div class="left" id="leftCol">
+      <div class="head">
+        <h1>🏰 La Quête du Château</h1>
+        <div class="subtitle" id="greet">Préparé pour Mon cœur</div>
+      </div>
+
+      <div class="board" id="board">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:15px;color:#333">Traverse la cour du château, évite les pièges, récupère des objets symboliques et découvre des encouragements — parfois romantiques, parfois très drôles.</div>
+          <div class="hint">Contrôles : cliquez sur une case, utilisez ← → ou les boutons "Avancer / Reculer".</div>
+        </div>
+
+        <div class="map" id="map">
+          <!-- rows injected here -->
+        </div>
+
+        <div class="controls">
+          <button id="prev">⬅️ Reculer</button>
+          <button id="next">➡️ Avancer</button>
+          <div style="margin-left:auto" class="hint">Case <span id="pos">1</span> / <span id="len">15</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-weight:900;color:var(--accent)">Pour :</div>
+            <input id="name" value="Mon cœur" style="width:100%;padding:8px;border-radius:8px;border:1px solid #ffd6e4;margin-top:8px;font-weight:700"/>
+          </div>
+          <div style="text-align:right">
+            <div class="progress">Trésors : <div style="width:8px"></div><div class="stat" id="treasureCount">0</div></div>
+            <div style="font-size:12px;color:var(--muted);margin-top:6px">Château version : romantique/amusante</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:800;margin-bottom:8px">Inventaire</div>
+        <div class="inventory" id="inventory"></div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:800;margin-bottom:8px">Journal</div>
+        <div class="log" id="log">La porte du château grince... Commence la quête !</div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button id="restart" class="alt">🔁 Recommencer</button>
+        <button id="finish">🎁 Terminer</button>
+      </div>
+
+      <div class="panel footerNote">Astuce : personnalise le prénom → ajoute des private jokes dans la boîte des phrases si tu veux une version sur-mesure.</div>
+
+      <div class="finalView" id="finalView">
+        <div class="big" id="finalEmoji">🎉</div>
+        <h2 id="finalTitle">Joyeux anniversaire !</h2>
+        <p id="finalMessage">Tu as traversé le château et collecté les trésors.</p>
+        <div id="finalList" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px"></div>
+        <div style="margin-top:14px"><button id="replay">Rejouer</button></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="confetti" id="confetti"></div>
+
+<script>
+/* Jeu : Quête du Château — single file */
+/* Configuration */
+const ROWS = 3;
+const COLS = 5;
+const TOTAL = ROWS * COLS;
+document.getElementById('len').textContent = TOTAL;
+
+const mapEl = document.getElementById('map');
+const posEl = document.getElementById('pos');
+const nameInput = document.getElementById('name');
+const greet = document.getElementById('greet');
+const invEl = document.getElementById('inventory');
+const logEl = document.getElementById('log');
+const treasureCountEl = document.getElementById('treasureCount');
+const finalView = document.getElementById('finalView');
+const finalList = document.getElementById('finalList');
+const finalMessage = document.getElementById('finalMessage');
+
+let position = 1;
+let tiles = []; // {idx, type, item, blocked}
+let inventory = [];
+let messages = [];
+
+/* Items & obstacles (castle theme) */
+const ITEMS = [
+  {id:'heart', emoji:'💗', name:'Cœur', msg:'Un petit cœur pour rappeler que tu comptes pour moi.'},
+  {id:'scroll', emoji:'📜', name:'Lettre', msg:'Une note roulée: "tu es incroyable".'},
+  {id:'cup', emoji:'🧁', name:'Cupcake', msg:'Un cupcake : douceur et sourire garantis.'},
+  {id:'candle', emoji:'🕯️', name:'Bougie', msg:'Une bougie pour éclairer tes futurs rêves.'},
+  {id:'star', emoji:'⭐', name:'Étoile', msg:'Une étoile pour toutes les nuits où on brillera.'},
+  {id:'token', emoji:'🔑', name:'Clé', msg:'Une clé : parfois il faut ouvrir des portes.'}
+];
+
+const OBSTACLES = [
+  {id:'spike', emoji:'🗡️', msg:'Oups, un piège ! Tu recules de 1 case.'},
+  {id:'moat', emoji:'🌊', msg:'Un fossé rempli d\'eau : trouve une planche (ou prends un autre chemin).'},
+  {id:'guard', emoji:'🛡️', msg:'Un garde ronchon : il demande un compliment pour te laisser passer.'}
+];
+
+const ENCOURAGEMENTS = [
+  "Vas-y, tu fais ça très bien !",
+  "Un pas de plus — je suis fier(e) de toi.",
+  "T'as ce qu'il faut pour arriver au trésor.",
+  "Courage ! Ton gâteau t'attend (mentalement).",
+  "Presque là ; encore une aventure et c'est la fête !"
+];
+
+const ROMANTIC = [
+  "Petite pensée : je t'aime, même quand tu perds au jeu.",
+  "Romantique discret : tu illumines mes jours.",
+  "Un clin d'œil doux : merci d'exister."
+];
+
+const FUNNY = [
+  "Si un garde te demande un compliment, dis-lui que son armure est tendance.",
+  "Rappel: un cupcake = solution universelle.",
+  "Même les chevaliers prennent des pauses gâteau."
+];
+
+/* Utilities */
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function log(text){ const d=document.createElement('div'); d.textContent=text; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+function updateUI(){
+  posEl.textContent = position;
+  document.querySelectorAll('.tile').forEach(t=>{
+    const idx = Number(t.dataset.idx);
+    t.classList.toggle('current', idx===position);
+  });
+  treasureCountEl.textContent = inventory.length;
+}
+
+/* Build map: place some items and obstacles */
+function buildTiles(){
+  tiles = [];
+  // make a castle-feel layout: stone tiles on edges, obstacles scattered, final chest at last tile
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const idx = r*COLS + c + 1;
+      const tile = { idx, item:null, blocked:false, type:'normal' };
+      // edges slightly more stone-like
+      if(r===0 || r===ROWS-1 || c===0 || c===COLS-1) tile.type='stone';
+      // final tile gets a gift
+      if(idx === TOTAL){
+        tile.item = { ...ITEMS.find(i=>i.id==='heart'), emoji:'🎁', name:'Cadeau', msg:'Un vrai cadeau pour ton anniversaire !' };
+      } else {
+        // random: 40% item, 20% obstacle, else empty
+        const r1 = Math.random();
+        if(r1 < 0.40){
+          tile.item = {...rand(ITEMS)};
+        } else if(r1 < 0.60){
+          tile.blocked = true;
+          tile.obstacle = {...rand(OBSTACLES)};
+        }
+      }
+      tiles.push(tile);
+    }
+  }
+  // ensure starting tile empty
+  tiles[0].item = null;
+  tiles[0].blocked = false;
+}
+
+/* Render map grid */
+function renderMap(){
+  mapEl.innerHTML = '';
+  for(let r=0;r<ROWS;r++){
+    const row = document.createElement('div');
+    row.className = 'row';
+    for(let c=0;c<COLS;c++){
+      const idx = r*COLS + c + 1;
+      const t = tiles[idx-1];
+      const d = document.createElement('div');
+      d.className = 'tile' + (t.type==='stone' ? ' stone' : '') + (t.blocked ? ' obs' : '');
+      d.dataset.idx = idx;
+      d.innerHTML = `<div class="idx">${idx}</div>
+                     <div class="emoji">${t.blocked ? (t.obstacle ? t.obstacle.emoji : '⚠️') : (t.item ? t.item.emoji : '🏰')}</div>
+                     <div class="floor"></div>`;
+      d.onclick = ()=>attemptMove(idx);
+      row.appendChild(d);
+    }
+    mapEl.appendChild(row);
+  }
+  updateUI();
+}
+
+/* Movement & interactions */
+function attemptMove(target){
+  // if moving to a distant tile, just set position; we keep it simple: clicking jumps there
+  if(target === position){
+    interactCurrent();
+    return;
+  }
+  // If target tile is blocked by obstacle, handle obstacle
+  const t = tiles[target-1];
+  if(t.blocked){
+    handleObstacle(t);
+    return;
+  }
+  // Move
+  position = target;
+  updateUI();
+  interactCurrent();
+}
+
+function step(dir){
+  let newPos = position + dir;
+  if(newPos < 1) newPos = 1;
+  if(newPos > TOTAL) newPos = TOTAL;
+  const t = tiles[newPos-1];
+  if(t.blocked){
+    handleObstacle(t);
+    return;
+  }
+  position = newPos;
+  updateUI();
+  interactCurrent();
+}
+
+function interactCurrent(){
+  const t = tiles[position-1];
+  log(`Tu es sur la case ${position}.`);
+  // random encouragement maybe
+  if(Math.random() < 0.25){
+    const cat = Math.random();
+    log(cat < 0.6 ? rand(ENCOURAGEMENTS) : (cat < 0.85 ? rand(FUNNY) : rand(ROMANTIC)));
+  }
+  if(t.item){
+    collectItem(t.item);
+    // remove item after collect
+    t.item = null;
+    renderMap();
+  } else if(t.blocked){
+    handleObstacle(t);
+  } else {
+    log("Rien d'extraordinaire ici — juste les pierres du château.");
+  }
+}
+
+/* Collecting */
+function collectItem(item){
+  inventory.push(item);
+  messages.push(`${item.emoji} ${item.name} — ${item.msg}`);
+  renderInventory();
+  log(`Tu as récupéré : ${item.name}. ${rand(ENCOURAGEMENTS)}`);
+  flash(`${item.emoji} Ramassé : ${item.name}`);
+}
+
+/* Obstacles handling */
+function handleObstacle(tile){
+  const obs = tile.obstacle || {emoji:'⚠️', msg:'Un obstacle mystérieux.'};
+  log(`Oh non — ${obs.msg}`);
+  // simple obstacle logic:
+  if(obs.id === 'spike'){
+    // spike pushes back one tile if possible
+    flash('Aïe ! Tu recules d\'une case.');
+    position = Math.max(1, position - 1);
+    updateUI();
+  } else if(obs.id === 'moat'){
+    // moat: need 'token' (🔑) to cross; else must go around (we push back)
+    const hasKey = inventory.some(i=>i.id==='token');
+    if(hasKey){
+      flash('Tu utilises ta clé 🔑 et traverses le pont.');
+      log('La clé t\'a permis de traverser le fossé.');
+      // remove the obstacle and allow the tile to be normal
+      tile.blocked = false; tile.obstacle = null; renderMap(); position = tile.idx; updateUI(); interactCurrent();
+    } else {
+      flash('Il te manque une planche (ou une clé). Tu recules pour chercher un autre chemin.');
+      position = Math.max(1, position - 1);
+      updateUI();
+    }
+  } else if(obs.id === 'guard'){
+    // guard wants compliment: if player has 'scroll' (lettre) or says a compliment (simulate with random chance)
+    const hasScroll = inventory.some(i=>i.id==='scroll');
+    if(hasScroll || Math.random() < 0.35){
+      flash('Le garde sourit : "Merci". Il te laisse passer.');
+      tile.blocked = false; tile.obstacle = null; renderMap(); position = tile.idx; updateUI(); interactCurrent();
+    } else {
+      flash('Le garde ne te laisse pas passer. Il boude un peu.');
+      log('Peut-être un compliment ? Ou trouve une lettre.');
+      position = Math.max(1, position - 1);
+      updateUI();
+    }
+  } else {
+    // default: push back
+    position = Math.max(1, position - 1);
+    updateUI();
+  }
+}
+
+/* Inventory render */
+function renderInventory(){
+  invEl.innerHTML = '';
+  inventory.forEach(it=>{
+    const c = document.createElement('div');
+    c.className = 'chip';
+    c.textContent = `${it.emoji} ${it.name}`;
+    invEl.appendChild(c);
+  });
+  treasureCountEl.textContent = inventory.length;
+}
+
+/* Flash message (temporary) */
+function flash(text){
+  const p = document.createElement('div');
+  p.style.position='fixed';
+  p.style.left='50%'; p.style.transform='translateX(-50%)';
+  p.style.bottom='12%'; p.style.padding='10px 14px';
+  p.style.background='linear-gradient(90deg,#fff,#fff6fa)'; p.style.border='1px solid #ffd6e4';
+  p.style.borderRadius='10px'; p.style.boxShadow='0 8px 22px rgba(200,75,125,0.12)';
+  p.style.fontWeight=800; p.style.color='#c84b7d'; p.style.zIndex=9999;
+  p.textContent = text;
+  document.body.appendChild(p);
+  setTimeout(()=>{ p.style.transition='opacity .45s'; p.style.opacity=0; setTimeout(()=>p.remove(),500) }, 1100);
+}
+
+/* Confetti */
+function popConfetti(){
+  const root = document.getElementById('confetti');
+  root.innerHTML='';
+  const colors = ['#f97aa6','#ffd1e6','#ffb3d1','#ffe6f6','#fff0f7'];
+  for(let i=0;i<70;i++){
+    const el = document.createElement('div');
+    el.className='piece';
+    el.style.background = colors[Math.floor(Math.random()*colors.length)];
+    el.style.left = Math.random()*100+'%';
+    el.style.top = (-10 - Math.random()*20) + '%';
+    el.style.width = (6 + Math.random()*10)+'px';
+    el.style.height = (8 + Math.random()*14)+'px';
+    root.appendChild(el);
+    const dur = 2000 + Math.random()*1600;
+    el.animate([
+      { transform:`translateY(0) rotate(${Math.random()*360}deg)`, opacity:1 },
+      { transform:`translateY(${80 + Math.random()*60}vh) rotate(${Math.random()*720}deg)`, opacity:0.9 }
+    ], { duration: dur, easing: 'cubic-bezier(.2,.7,.2,1)'});
+    setTimeout(()=>el.remove(), dur+50);
+  }
+}
+
+/* Finish */
+function finish(){
+  // show final overlay in right column
+  finalList.innerHTML = '';
+  messages.forEach(m=>{
+    const el = document.createElement('div');
+    el.className = 'chip';
+    el.style.fontSize='14px';
+    el.textContent = m;
+    finalList.appendChild(el);
+  });
+  if(inventory.length === 0){
+    finalList.innerHTML = '<div style="padding:8px">Tu n\'as ramassé aucun trésor, mais tu as mon cœur 💗</div>';
+  }
+  finalMessage.textContent = `Tu as trouvé ${inventory.length} trésors pendant la quête.`;
+  // hide left map, show final view in right
+  document.getElementById('leftCol').style.display='none';
+  finalView.style.display='block';
+  popConfetti();
+}
+
+/* Reset */
+function reset(){
+  position = 1;
+  inventory = [];
+  messages = [];
+  buildTiles();
+  renderMap();
+  renderInventory();
+  logEl.innerHTML = 'La porte du château grince... Commence la quête !';
+  document.getElementById('leftCol').style.display='';
+  finalView.style.display='none';
+  greet.textContent = `Préparé pour ${nameInput.value || 'Mon cœur'}`;
+}
+
+/* Init handlers */
+document.getElementById('next').addEventListener('click', ()=>step(1));
+document.getElementById('prev').addEventListener('click', ()=>step(-1));
+document.getElementById('restart').addEventListener('click', reset);
+document.getElementById('finish').addEventListener('click', finish);
+document.getElementById('replay').addEventListener('click', reset);
+window.addEventListener('keydown', (e)=>{
+  if(finalView.style.display === 'block') return;
+  if(e.key === 'ArrowRight' || e.key==='d') step(1);
+  if(e.key === 'ArrowLeft' || e.key==='a') step(-1);
+});
+nameInput.addEventListener('input', ()=>{ greet.textContent = `Préparé pour ${nameInput.value || 'Mon cœur'}`; });
+
+/* Start */
+reset();
+
+// small flavor: occasional ambient message
+setInterval(()=>{
+  if(Math.random() < 0.25){
+    const cat = Math.random();
+    log(cat < 0.6 ? rand(ENCOURAGEMENTS) : (cat < 0.85 ? rand(FUNNY) : rand(ROMANTIC)));
+  }
+}, 9000);
+
+</script>
+</body>
+</html>
